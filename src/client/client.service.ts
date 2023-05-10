@@ -34,14 +34,14 @@ export class ClientService {
     const s = new ClientService(SharedModule.redis);
 
 
-    await s.add({
+/*    await s.add({
       "name": "test",
       "slug": "test",
       "url": "test",
       "path": "I:\\Work\\BusinessLink\\sites\\eshop-front-test",
       "command": "npm run build:local",
       "createdAt": new Date()
-    });
+    });*/
   }
 
   getSchema() {
