@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Job } from "bullmq";
+import { Job, UnrecoverableError } from "bullmq";
 import { QueueService } from "../queue/queue.service";
 import { ClientService, IClientModel } from "~client/client.service";
 import { SharedModule } from "~shared/shared.module";
@@ -49,15 +49,13 @@ export class RunnerService {
       await (new RunnerService).execute(job, client, true);
     }
     catch (e) {
-      console.error(`Error executing job ${job.id} with error ${e.message}`);
+      // console.error(`Error executing job ${job.id} with error ${e.message}`);
+      throw new UnrecoverableError('Unrecoverable');
     }
 
-    // run the command
-    // console.log('job', job.id, job.data, client);
   }
 
   async execute(job: Job, client: IClientModel, verbose = false) {
-    console.log(client)
     const parts = client.command.split(" ");
     const options = parts.slice(1);
     const command = parts[0];
@@ -73,10 +71,12 @@ export class RunnerService {
       });
 
       build.stderr.on("data", data => {
-
         if (verbose) {
           console.log(data.toString());
         }
+
+        SharedModule.logger.error(data.toString());
+        reject(data.toString());
       });
 
       build.on("close", code => {
@@ -97,27 +97,23 @@ export class RunnerService {
   }
 
   async runOnce(name: string) {
-    const jobName = `${QueueService.jobEventName}${name}`;
     const queue = new QueueService();
-    let job;
-    try {
-      job = await queue.getJob(jobName);
-    }
-    catch (e) {
-      throw new Error(`Job ${name} not found`);
-    }
+
 
     const clientService = new ClientService(SharedModule.redis);
     const client = await clientService.findOne({ name: name });
 
+    if (!client) {
+      throw new Error(`Client ${name} not found`);
+    }
 
     // Push for immediate execution
     try {
-      const res = await queue.addJob(`${QueueService.immediateExecutionJobName}:${name}`, client);
-      return {success: true, res}
+      const res = await queue.addJob(`${QueueService.immediateExecutionJobName}:${name}`, client, false);
+      return {success: true, job: res};
     }
     catch (e) {
-      throw new Error(`Error executing job ${job.id} with error ${e.message}`);
+      throw new Error(`Error adding job with error ${e.message}`);
     }
 
 
@@ -127,5 +123,14 @@ export class RunnerService {
     const queue = new QueueService();
 
     return await queue.getJobStatus(id);
+  }
+
+  async getHistory(name: string) {
+    const queue = new QueueService();
+
+    const results = await queue.getJobs(['completed', 'failed']);
+    return results.filter((job) => {
+      return job.name === `${QueueService.immediateExecutionJobName}:${name}`;
+    });
   }
 }

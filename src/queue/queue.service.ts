@@ -43,14 +43,17 @@ export class QueueService {
     return jobs.find(j => j.name === jobName);
   }
 
-  public async addJob(name: string, payload: any, removeOnComplete = true) {
+  public async addJob(name: string, payload: any, removeOnCompleted = true) {
     const job = await this.getJob(name, ['active', 'waiting', 'delayed']);
     if (job) {
       throw new Error(`Job ${name} already exists`);
     }
 
+    const removeOnComplete = (removeOnCompleted) ? {count: 20} : false;
     return await QueueService.queue.add(name, payload, {
       removeOnComplete,
+      attempts: 2,
+
     })
   }
 
