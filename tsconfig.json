@@ -16,6 +16,19 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "~root/*": ["src/*"],
+      "~cli/*": ["src/cli/*"],
+      "~shared/*": ["src/shared/*"],
+      "~helpers/*": ["src/helpers/*"],
+      "~admin/*": ["src/admin/*"],
+      "~runner/*": ["src/runner/*"],
+      "~change-log/*": ["src/change-log/*"],
+      "~queue/*": ["src/queue/*"],
+      "~receiver/*": ["src/receiver/*"],
+      "~user/*": ["src/user/*"],
+      "~client/*": ["src/client/*"]
+    }
   }
 }

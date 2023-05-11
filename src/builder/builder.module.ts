@@ -1,31 +1,29 @@
 import { Logger, Module } from "@nestjs/common";
+import { BuilderController } from './builderController';
 import { SharedModule } from "~shared/shared.module";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ModuleRef } from "@nestjs/core";
-import { QueueService } from './queue.service';
 
 @Module({
   imports: [
-    SharedModule
+    SharedModule,
   ],
-  providers: [
-    QueueService
-  ],
+  controllers: [BuilderController]
 })
-export class QueueModule {
+export class BuilderModule {
   static eventEmitter: EventEmitter2;
   static moduleRef: ModuleRef;
-  protected readonly logger = new Logger(QueueModule.name);
+  protected readonly logger = new Logger(BuilderModule.name);
 
   constructor(
     private m: ModuleRef,
     private eventEmitter: EventEmitter2,
   ) {
-    QueueModule.eventEmitter = eventEmitter;
+    BuilderModule.eventEmitter = eventEmitter;
   }
 
   onModuleInit() {
-    QueueModule.moduleRef = this.m;
-    this.logger.log('QueueModule initialized');
+    BuilderModule.moduleRef = this.m;
+    this.logger.log('BuilderModule initialized');
   }
 }

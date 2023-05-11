@@ -4,14 +4,40 @@ import {RedisClientType} from "redis";
 import { SharedModule } from "../shared/shared.module";
 import { IGenericObject } from "../models/general";
 import { extractSingleFilterFromObject } from "../helpers/models";
-
+import { IsNotEmpty } from "class-validator";
+import { QueueService } from "~root/queue/queue.service";
+import { AppStateActions } from "~root/state";
+const slugify = require('slug');
 export interface IClientModel extends EntityData {
   name: string;
-  slug: string;
+  slug?: string;
   url: string;
   path: string;
   command: string;
-  createdAt: Date;
+  authKey: string;
+  repeat?: number|string;
+  createdAt?: Date;
+}
+
+export class clientDto {
+  @IsNotEmpty()
+  name: string;
+
+  @IsNotEmpty()
+  url: string;
+
+  @IsNotEmpty()
+  path: string;
+
+  @IsNotEmpty()
+  command: string;
+
+  @IsNotEmpty()
+  authKey: string;
+
+  repeat: number;
+  pattern: string;// cron pattern
+
 }
 
 @Injectable()
@@ -22,17 +48,20 @@ export class ClientService {
     @Inject('REDIS') protected redis: RedisClientType,
   ) {
     this.schema = new Schema('client', {
-      name: { type: 'string' },
-      slug: { type: 'text' },
-      url: { type: 'text' },
+      name: { type: 'string' },//searchable
+      slug: { type: 'string' },//searchable
+      authKey: { type: 'string' },//searchable
+      url: { type: 'text' },//NOT searchable
       path: { type: 'text' },
       command: { type: 'text' },
+      repeat: { type: 'number' },
+      pattern: { type: 'text' },// cron pattern
       createdAt: { type: 'date' }
     });
   }
   async onModuleInit() {
     const s = new ClientService(SharedModule.redis);
-
+    AppStateActions.setClients(await s.all());
 
 /*    await s.add({
       "name": "test",
@@ -55,7 +84,12 @@ export class ClientService {
     return repo;
   }
 
-  async add(client: IClientModel) {
+  async all() {
+    const repo = await this.setModel();
+    return await repo.search().return.all() as unknown as IClientModel[];
+  }
+
+  async add(client: clientDto) {
     const repo = await this.setModel();
     const found = await this.findOne({ name: client.name });
 
@@ -64,8 +98,17 @@ export class ClientService {
       return ;
     }
 
+    const toAdd: IClientModel = {
+      ...client,
+      ...{
+        slug: slugify(client.name, { lower: true }),
+        createdAt: new Date()
+      }
+    };
+
+
     try {
-      const res = await repo.save(client);
+      const res = await repo.save(toAdd);
 
       console.log(`Client ${client.name} added with id ${res.id}`);
 
@@ -96,5 +139,30 @@ export class ClientService {
       .equals(value)
       .return
       .all() as unknown as IClientModel[];
+  }
+
+  async activate(name: string) {
+    const slug = slugify(name, { lower: true });
+    const client = await this.findOne({ slug });
+
+    if (!client) {
+      throw new Error(`Client ${name} not found`);
+    }
+
+    const queue = new QueueService();
+    return await queue.addRepeatableJob(`${QueueService.jobEventName}${slug}`, {client}, client.repeat);
+  }
+
+  async deactivate(name: string) {
+    const slug = slugify(name, { lower: true });
+    const client = await this.findOne({ slug });
+
+    if (!client) {
+      throw new Error(`Client ${name} not found`);
+    }
+
+    const queue = new QueueService();
+
+    return await queue.removeRepeatable(`${QueueService.jobEventName}${slug}`);
   }
 }

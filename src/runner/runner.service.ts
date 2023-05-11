@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Job } from "bullmq";
 import { QueueService } from "../queue/queue.service";
-import { ClientService, IClientModel } from "../client/client.service";
-import { SharedModule } from "../shared/shared.module";
+import { ClientService, IClientModel } from "~client/client.service";
+import { SharedModule } from "~shared/shared.module";
 const spawn = require('cross-spawn');
 
 @Injectable()
@@ -15,9 +15,12 @@ export class RunnerService {
     QueueService.addWorker(this.worker, QueueService.queueName);
 
 /*      setTimeout(() => {
-        QueueService.queue.add(QueueService.jobEventName, { name: 'test' }, {
+         QueueService.queue.add('test', { name: 'test' }, {
           removeOnComplete: true,
-        })
+        }).then((job) => {
+          console.log(job)
+        });
+
       }, 500)*/
 /*    setTimeout(() => {
       QueueService.queue.add(QueueService.jobEventName, { test: 'test' }, {
@@ -30,6 +33,9 @@ export class RunnerService {
 
   }
 
+  /**
+   * @param job
+   */
   async worker(job: Job) {
     const clientService = new ClientService(SharedModule.redis);
 
@@ -88,5 +94,38 @@ export class RunnerService {
 
     });
 
+  }
+
+  async runOnce(name: string) {
+    const jobName = `${QueueService.jobEventName}${name}`;
+    const queue = new QueueService();
+    let job;
+    try {
+      job = await queue.getJob(jobName);
+    }
+    catch (e) {
+      throw new Error(`Job ${name} not found`);
+    }
+
+    const clientService = new ClientService(SharedModule.redis);
+    const client = await clientService.findOne({ name: name });
+
+
+    // Push for immediate execution
+    try {
+      const res = await queue.addJob(`${QueueService.immediateExecutionJobName}:${name}`, client);
+      return {success: true, res}
+    }
+    catch (e) {
+      throw new Error(`Error executing job ${job.id} with error ${e.message}`);
+    }
+
+
+  }
+
+  async getStatus(id: string) {
+    const queue = new QueueService();
+
+    return await queue.getJobStatus(id);
   }
 }

@@ -4,6 +4,7 @@ import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ModuleRef } from "@nestjs/core";
 import { QueueModule } from "../queue/queue.module";
 import { RunnerService } from './runner.service';
+import { RunController } from './run.controller';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { RunnerService } from './runner.service';
     QueueModule,
   ],
   providers: [RunnerService],
+  controllers: [RunController],
 })
 export class RunnerModule {
   static eventEmitter: EventEmitter2;

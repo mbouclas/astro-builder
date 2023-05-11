@@ -1,12 +1,14 @@
-import { Logger, Module } from "@nestjs/common";
+import { Logger, MiddlewareConsumer, Module, RequestMethod } from "@nestjs/common";
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { RunnerModule } from './runner/runner.module';
-import { ReceiverModule } from './receiver/receiver.module';
+import { RunnerModule } from "~runner/runner.module";
+import { BuilderModule } from '~root/builder/builder.module';
 import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
-import { SharedModule } from './shared/shared.module';
-import { QueueModule } from './queue/queue.module';
-import { ClientModule } from './client/client.module';
+import { SharedModule } from "~shared/shared.module";
+
+import { ClientModule } from "~client/client.module";
+import { QueueModule } from "~queue/queue.module";
+import { AuthorizeMiddleware } from "~root/middleware/authorize-middleware.middleware";
 
 @Module({
   imports: [
@@ -16,7 +18,7 @@ import { ClientModule } from './client/client.module';
       verboseMemoryLeak: true,
     }),
     RunnerModule,
-    ReceiverModule,
+    BuilderModule,
     SharedModule,
     QueueModule,
     ClientModule
@@ -28,6 +30,12 @@ export class AppModule {
   private readonly logger = new Logger(AppModule.name);
 
   constructor(private eventEmitter: EventEmitter2) {}
+
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(AuthorizeMiddleware)
+      .forRoutes({path: 'api*', method: RequestMethod.ALL});
+  }
 
   async onApplicationBootstrap() {
     this.eventEmitter.emit('app.loaded', { success: true });

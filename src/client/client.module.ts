@@ -3,12 +3,14 @@ import { ClientService } from './client.service';
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ModuleRef } from "@nestjs/core";
 import { SharedModule } from "../shared/shared.module";
+import { ClientController } from './client.controller';
 
 @Module({
   imports: [
     SharedModule,
   ],
-  providers: [ClientService]
+  providers: [ClientService],
+  controllers: [ClientController]
 })
 export class ClientModule {
   static eventEmitter: EventEmitter2;
