@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Job, UnrecoverableError } from "bullmq";
-import { QueueService } from "../queue/queue.service";
+import { QueueService } from "~queue/queue.service";
 import { ClientService, IClientModel } from "~client/client.service";
 import { SharedModule } from "~shared/shared.module";
 const spawn = require('cross-spawn');
@@ -12,7 +12,11 @@ export class RunnerService {
   ) {
   }
   async onModuleInit() {
-    QueueService.addWorker(this.worker, QueueService.queueName);
+    // QueueService.addWorker(this.worker, QueueService.queueName);
+    setTimeout(async () => {
+      await this.initialize();
+    }, 1000)
+
 
 /*      setTimeout(() => {
          QueueService.queue.add('test', { name: 'test' }, {
@@ -34,12 +38,19 @@ export class RunnerService {
   }
 
   /**
+   * Re-add any workers required to process the jobs
+   */
+  async initialize() {
+    await QueueService.addWorker(this.worker, QueueService.queueName);
+  }
+
+  /**
    * @param job
    */
   async worker(job: Job) {
     const clientService = new ClientService(SharedModule.redis);
-
-    const client = await clientService.findOne({ name: job.data.name });
+    const data = (job.data.client) ? job.data.client : job.data;
+    const client = await clientService.findOne({ name: data.name });
 
     if (!client) {
       throw new Error(`Client ${job.data.name} not found`);
@@ -128,9 +139,36 @@ export class RunnerService {
   async getHistory(name: string) {
     const queue = new QueueService();
 
-    const results = await queue.getJobs(['completed', 'failed']);
+    const results = await queue.getJobs(['completed', 'failed'])
+    if (!results || results.length === 0) {return [];}
+
     return results.filter((job) => {
+      if (!job) {return false;}
       return job.name === `${QueueService.immediateExecutionJobName}:${name}`;
     });
+  }
+
+  async getJobs(client?: string) {
+    const queue = new QueueService();
+    // if client, filter
+    const jobs= await queue.getRepeatableJobs();
+    if (!client) {
+      return jobs;
+    }
+
+    return jobs.filter((job) => {
+      return job.name === QueueService.jobEventName.replace(':', '') && job.id === client;
+    });
+  }
+
+  async removeJob(client: string) {
+    const queue = new QueueService();
+    const jobs = await this.getJobs(client);
+    if (jobs.length === 0) {return {success: false, message: 'Job not found'};}
+    return await queue.removeRepeatable(jobs[0].key);
+  }
+
+  async removeAllJobs() {
+    return await (new QueueService()).removeAllJobs();
   }
 }

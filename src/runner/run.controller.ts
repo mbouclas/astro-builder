@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from "@nestjs/common";
+import { Controller, Delete, Get, Param, Query } from "@nestjs/common";
 import { RunnerService } from "~runner/runner.service";
 
 @Controller("api/run")
@@ -6,6 +6,21 @@ export class RunController {
   constructor(
     private service: RunnerService
   ) {
+  }
+
+  @Get('jobs')
+  async getJobs(@Param('client') client: string) {
+    return await this.service.getJobs(client);
+  }
+
+  @Delete('jobs')
+  async removeJobs() {
+    return await this.service.removeAllJobs();
+  }
+
+  @Delete('jobs/:client')
+  async removeJob(@Param('client') client: string) {
+    return await this.service.removeJob(client);
   }
 
   @Get(":name")
@@ -43,7 +58,10 @@ export class RunController {
         stacktrace: job.stacktrace,
       })).sort((a, b) => (a.timestamp > b.timestamp ? -1 : 1));
     } catch (e) {
+      console.log(e)
       return { success: false, error: e.message };
     }
   }
+
+
 }

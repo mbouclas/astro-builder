@@ -1,14 +1,16 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { JobType, Processor, Queue, Worker } from "bullmq";
+import { Job, JobType, Processor, Queue, QueueEvents, Worker } from "bullmq";
 import { redisConnectionInfo } from "~helpers/redis";
+
 
 @Injectable()
 export class QueueService {
   private static readonly logger = new Logger(QueueService.name);
   public static jobEventName = "process:";
   public static immediateExecutionJobName = 'execute:';
-  public static queueName = 'processQueue';
+  public static queueName = process.env.ENV === 'production' ? 'processQueue' : 'processQueueDev';
   public static queue: Queue;
+  public static queueEvents: QueueEvents;
   protected static workers: Worker[] = [];
   protected static redisConnection = redisConnectionInfo();
 
@@ -17,17 +19,43 @@ export class QueueService {
       connection: QueueService.redisConnection
     });
 
-
-
+    QueueService.queueEvents = new QueueEvents(QueueService.queueName, {
+      connection: QueueService.redisConnection
+    });
+    QueueService.queueEvents.on('completed', (jobId) => QueueService.logger.log(`${QueueService.queueName}: ${jobId}  completed`));
+    QueueService.queueEvents.on('failed', (jobId) => QueueService.onFailedJob);
+    QueueService.queueEvents.on('error', (error) => QueueService.logger.error(error));
     QueueService.queue.on('waiting', (job) => QueueService.logger.log(`${QueueService.queueName}: ${job.id}  now waiting`));
+  }
+
+
+  public static onFailedJob(job: Job) {
+    console.log('Job failed', job.id, job.name, job.data);
   }
 
   public static addWorker(worker: Processor, queueName) {
 
     const w = new Worker(queueName, worker, {
       connection: QueueService.redisConnection,
-      concurrency: 3
+      concurrency: 3,
+      autorun: true,
     });
+
+    w.on('completed', (job) => {
+      QueueService.logger.log(`Job ${job.id} has been completed`);
+      console.log(`From AddWorker Event: Job ${job.id} has been completed`);
+    });
+
+    w.on('failed', (job, err) => {
+      QueueService.logger.error(`Job ${job.id} has failed with error ${err}`);
+      console.log(`From AddWorker Event: Job ${job.id} has failed with error`, err);
+    });
+
+    w.on('error', err => {
+      // log the error
+      console.error(`From AddWorker Event: Error: ${err.message} `, err)
+    });
+
 
     QueueService.workers.push(w);
 
@@ -36,6 +64,21 @@ export class QueueService {
 
   public async getJobs(statuses: JobType[] = ['active', 'waiting', 'delayed', 'completed', 'failed']) {
     return await QueueService.queue.getJobs(statuses);
+  }
+
+  async removeAllJobs() {
+    const jobs = await QueueService.queue.getRepeatableJobs();
+    try {
+      for (const job of jobs) {
+        await QueueService.queue.removeRepeatableByKey(job.key);
+      }
+
+      return {success: true};
+    }
+    catch (e) {
+      return {success: false, error: e.message};
+    }
+
   }
 
   public async getJob(jobName: string, statuses?: JobType[]) {
@@ -72,7 +115,7 @@ export class QueueService {
       repeat['pattern'] = repeatEveryHours;
     }
 
-    return await QueueService.queue.add(jobName, { test: 'test' }, {
+    return await QueueService.queue.add(jobName, payload, {
       removeOnComplete: true,
       repeat
     });

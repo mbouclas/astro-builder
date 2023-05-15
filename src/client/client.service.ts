@@ -7,6 +7,7 @@ import { extractSingleFilterFromObject } from "../helpers/models";
 import { IsNotEmpty } from "class-validator";
 import { QueueService } from "~root/queue/queue.service";
 import { AppStateActions } from "~root/state";
+import { RunnerService } from "~runner/runner.service";
 const slugify = require('slug');
 export interface IClientModel extends EntityData {
   name: string;
