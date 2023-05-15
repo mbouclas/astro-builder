@@ -60,8 +60,8 @@ export class RunnerService {
       await (new RunnerService).execute(job, client, true);
     }
     catch (e) {
-      // console.error(`Error executing job ${job.id} with error ${e.message}`);
-      throw new UnrecoverableError('Unrecoverable');
+      console.error(`Error executing job ${job.id} with error ${e.message}`, e);
+
     }
 
   }
